@@ -51,7 +51,10 @@ var ROUTER = {
                         // - convert the WKT geometry to a JSTS geometry
                         // - add the starting point and ending point, kept as-is; for "purity" e.g. decorating the line or adding an icon)
                         // - add the starting point and ending point, with a buffer; provides "snapping" for finding other candidate lines
+                        // - add the centroid of this line segment; a "general sense" of its location for Manhattan heuristic
                         segment.geom = wktreader.read(segment.geom);
+
+                        segment.centroid = segment.geom.getCentroid();
 
                         var mypoints       = segment.geom.getCoordinates();
                         segment.firstpoint = gfactory.createPoint(mypoints[0]);
@@ -80,6 +83,12 @@ var ROUTER = {
     assemblePath: function (start_edge, target_edge, universe_segments, northbound) {
         // a list of edges which we have determined are wrong: wrong forks, wrong direction
         var poisoned = {};
+
+        // from our universe, extract the target edge
+        // we'll refer to this to check our distance to see whethwe r're going right or wrong (Manhattan heuristic)
+        var target_geom = universe_segments.filter(function (segment) {
+            return segment.id == target_edge.id;
+        })[0];
 
         // start by pulling from the universe, our first edge
         // then poison it so we don't try to re-cross our own starting point
@@ -111,9 +120,14 @@ var ROUTER = {
             }
             else if (candidates.length) {
                 // more than 1 unpoisoned candidate = this is a fork; pick one and move on
-                // if we were wrong we'd eventually end up with 0 candidates and not at the end, and backtrack to the fork
+                // if we were wrong we'd eventually end up with 0 candidates, a dead end; see below
                 console.log([ "fork detected here:", here.debug, 'candidates are:', candidates ]);
                 here.fork = true;
+
+                // Manhattan heuristic: whichever candidate is closer to our destination, is probably right
+                candidates.sort(function (p, q) {
+                    return p.centroid.distance(target_geom.centroid) <  q.centroid.distance(target_geom.centroid) ? -1 : 1;
+                });
                 nextsegment = candidates[0];
             }
             else {
