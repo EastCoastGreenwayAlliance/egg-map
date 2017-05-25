@@ -17,13 +17,23 @@
     <!-- JavaScript Topology Suite JSTS for WKT parsing and geospatial math -->
     <script type="text/javascript" src="https://cdn.rawgit.com/bjornharrtell/jsts/gh-pages/1.3.0/jsts.min.js"></script>
 
+    <!-- this custom routing system -->
+    <script type="text/javascript" src="router.js"></script>
+
     <!-- our own awesomesauce recipe -->
     <link rel="stylesheet" type="text/css" href="index.css" />
     <script type="text/javascript" src="index.js"></script>
 </head>
 <body>
 
-<p>See the console.log() for details.</p>
+<p>Pick a route and see what happpens. See the console.log() for extra details.</p>
+<ul>
+    <li><a href="javascript:void(0);" onClick="routeA()">Short route near Darien, GA</a></li>
+    <li><a href="javascript:void(0);" onClick="routeB()">Short route near Darien, GA with topology jumping</a></li>
+    <li><a href="javascript:void(0);" onClick="routeC()">Fernandina Beach, GA to St Augustine Beach, FL -- includes two forks</a></li>
+    <li><a href="javascript:void(0);" onClick="routeD()">Pierson, FL to Daytona Beach FL -- giant ring, very approximate start/end points</a></li>
+    <li><a href="javascript:void(0);" onClick="routeE()">Durham, NC to Greenville, NC -- giant ring, very approximate start/end points</a></li>
+</ul>
 
 <ul id="directions">
 </ul>
