@@ -39,7 +39,10 @@ var ROUTER = {
                     w: Math.min(target_edge.w, start_edge.w) - 3.0,
                     dir: northbound ? 'N' : 'S'
                 };
-                db.execute("SELECT pline_id AS id, title, meters, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
+
+                var geomtext = "ST_SIMPLIFY(the_geom,0.0001)"; // a teeny-tiny simplification to clean some of their flourishes that have wonky angles at starts and ends
+
+                db.execute("SELECT pline_id AS id, title, meters, ST_ASTEXT(" + geomtext + ") AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
                 .done(function(data) {
                     var wktreader = new jsts.io.WKTReader();
                     var gfactory  = new jsts.geom.GeometryFactory();
@@ -239,6 +242,7 @@ var ROUTER = {
         }        
 
         // go through the transitions and clean up non-matching ends, which form visible breaks where the segments don't really touch
+//GDA todo
 
         // go through the transitions and generate a directions attribute by comparing the azimuth of the old path and the new path
         // - human directions with the name "Turn right onto Schermerhorn Ct"
@@ -246,14 +250,66 @@ var ROUTER = {
         // - latlong of this step-segment's lastpoint vertex for the location of this transition
         //
         // add to the final point a transition as well, so caller doesn't need to scramble with "if not segment.transition"
+
+        var transition_codes = {
+            RIGHT_TURN: { code: 'RT', text: "Turn right onto " },
+            RIGHT_SOFT: { code: 'RS', text: "Bear right onto " },
+            RIGHT_HARD: { code: 'RH', text: "Turn sharply right onto " },
+            LEFT_TURN:  { code: 'LT', text: "Turn left onto " },
+            LEFT_SOFT:  { code: 'LS', text: "Bear left onto " },
+            LEFT_HARD:  { code: 'LH', text: "Turn sharply left onto " },
+            STRAIGHT:   { code: 'ST', text: "Continue onto " },
+            ARRIVE:     { code: 'AR', text: "Arrive" },
+            OTHER:      { code: 'XX', text: "" },
+        };
+
+        function rad2deg (angle) {
+            return angle * 57.29577951308232; // angle / Math.PI * 180
+        }
+        function deg2rad (angle) {
+            return angle * 0.017453292519943295; // (angle / 180) * Math.PI;
+        }
+
         for (var i=0, l=route.length-2; i<=l; i++) {
             var thisstep = route[i];
             var nextstep = route[i+1];
+
+            // find the azimuth (compass heading) of the two paths, and the difference between the azimuths, thus the turning
+            // the azimuth of the line's overall bent (firstpoint to lastpoint) is easily thrown off by curves characteristic of trails
+            // the azimuth of the very first or last vertex-pair, is too sensitive to very tiny variations when drawing shapes e.g. hand jitters
+            // so try the azimuth of the last 3 such pairs, if that many exist
+
+            var thispoints = thisstep.geom.getCoordinates().slice(-3);
+            var this_last = thispoints[ thispoints.length-1 ], this_prev = thispoints[0];
+
+            var nextpoints = nextstep.geom.getCoordinates().slice(0, 3);
+            var next_first = nextpoints[0], next_second = nextpoints[nextpoints.length-1];
+
+            var thislon2 = this_prev.x, thislat2 = this_prev.y, thislon1 = this_last.x, thislat1 = this_last.y;
+            var nextlon2 = next_first.x, nextlat2 = next_first.y, nextlon1 = next_second.x, nextlat1 = next_second.y;
+
+            var thisaz = (180 + rad2deg(Math.atan2(Math.sin(deg2rad(thislon2) - deg2rad(thislon1)) * Math.cos(deg2rad(thislat2)), Math.cos(deg2rad(thislat1)) * Math.sin(deg2rad(thislat2)) - Math.sin(deg2rad(thislat1)) * Math.cos(deg2rad(thislat2)) * Math.cos(deg2rad(thislon2) - deg2rad(thislon1)))) ) % 360;
+            var nextaz = (180 + rad2deg(Math.atan2(Math.sin(deg2rad(nextlon2) - deg2rad(nextlon1)) * Math.cos(deg2rad(nextlat2)), Math.cos(deg2rad(nextlat1)) * Math.sin(deg2rad(nextlat2)) - Math.sin(deg2rad(nextlat1)) * Math.cos(deg2rad(nextlat2)) * Math.cos(deg2rad(nextlon2) - deg2rad(nextlon1)))) ) % 360;
+            var angle = Math.round(nextaz - thisaz);
+            if (angle > 180)  angle = angle - 360;
+            if (angle < -180) angle = angle + 360;
+            console.log([ 'turning', thisstep.debug, nextstep.debug, thisaz, nextaz, angle ]);
+
+            var turntype = transition_codes.OTHER;
+            if      (angle >= -30 && angle <= 30)   turntype = transition_codes.STRAIGHT;
+            else if (angle >= 31  && angle <= 60)   turntype = transition_codes.RIGHT_SOFT;
+            else if (angle >= 61  && angle <= 100)  turntype = transition_codes.RIGHT_TURN;
+            else if (angle >= 101)                  turntype = transition_codes.RIGHT_HARD;
+            else if (angle <= -30 && angle >= -60)  turntype = transition_codes.LEFT_SOFT;
+            else if (angle <= -61 && angle >= -100) turntype = transition_codes.LEFT_TURN;
+            else if (angle <= -101)                 turntype = transition_codes.LEFT_HARD;
 
             thisstep.transition = {
                 lat: thisstep.lastpoint.coordinates.coordinates[0].y, // wow, no method for this?
                 lng: thisstep.lastpoint.coordinates.coordinates[0].x, // wow, no method for this?
                 title: thisstep.title + ' to ' + nextstep.title,
+                code: turntype.code,
+                title: turntype.text + nextstep.title,
             };
         }
 
@@ -261,7 +317,8 @@ var ROUTER = {
         thisstep.transition = {
             lat: thisstep.lastpoint.coordinates.coordinates[0].y, // wow, no method for this?
             lng: thisstep.lastpoint.coordinates.coordinates[0].x, // wow, no method for this?
-            title: 'Destination',
+            code: transition_codes.ARRIVE.code,
+            title: transition_codes.ARRIVE.text,
         };
 
         // and Bob's your uncle

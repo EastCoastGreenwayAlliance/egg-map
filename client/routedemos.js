@@ -3,6 +3,8 @@ function success(route) {
     var $readout = $('#directions').empty();
     route.forEach(function (routestep) {
         var html = "";
+        html += routestep.transition.title;
+        html += '<br/>';
         html += routestep.debug;
         html += '<br/>';
         html += (routestep.meters / 1609).toFixed(1) + ' ' + 'miles';
@@ -64,6 +66,12 @@ function routeC() {
     // Fernandina Beach GA  to St Augustine Beach, FL
     reset();
     ROUTER.findRoute(30.6774573, -81.4524394, 29.8398334,-81.2731937, success, error);
+}
+
+function routeC2() {
+    // Fernandina Beach GA  to St Augustine Beach, FL
+    reset();
+    ROUTER.findRoute(29.8398334,-81.2731937, 30.6774573, -81.4524394, success, error);
 }
 
 function routeD() {
