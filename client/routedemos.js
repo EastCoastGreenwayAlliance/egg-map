@@ -2,7 +2,12 @@ function success(route) {
     // list the directions in the readout
     var $readout = $('#directions').empty();
     route.forEach(function (routestep) {
-        $("<li></li>").text(routestep.debug).appendTo($readout);
+        var html = "";
+        html += routestep.debug;
+        html += '<br/>';
+        html += (routestep.meters / 1609).toFixed(1) + ' ' + 'miles';
+
+        $("<li></li>").html(html).appendTo($readout);
     });
 
     // add the segments to the map, rewriting them to contain the properties, popups, etc.
@@ -18,7 +23,8 @@ function success(route) {
             style: function (feature) {
                 return { clickable: false  }; // add other colors etc here
             },
-        }).addTo(MAP.route);
+        })
+        .addTo(MAP.route);
     });
     MAP.fitBounds(MAP.route.getBounds());
 }

@@ -16,6 +16,8 @@ $(document).ready(function () {
         zIndex: 100
     }).addTo(MAP);
 
+    L.control.scale().addTo(MAP);
+
     // a CARTO layer of the trail itself, for context
     cartodb.createLayer(MAP, 'https://' + CARTODB_USER + '.carto.com/api/v2/viz/' + CARTO_VISUALIZATION_ID + '/viz.json').addTo(MAP).on('done', function(layer) {
     });

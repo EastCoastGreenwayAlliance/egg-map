@@ -6,7 +6,7 @@ var ROUTER = {
     // main entry point
     // start lat, start lng, end lat, end lng
     findRoute: function (start_lat, start_lng, target_lat, target_lng, success_callback, failure_callback) {
-        var myself = this;
+        var self = this;
 
         // a database handle
         var db = new cartodb.SQL({ user: CARTODB_USER });
@@ -39,8 +39,7 @@ var ROUTER = {
                     w: Math.min(target_edge.w, start_edge.w) - 3.0,
                     dir: northbound ? 'N' : 'S'
                 };
-                //gda//db.execute("SELECT pline_id AS id, title, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
-                db.execute("SELECT pline_id AS id, title, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}')", params)
+                db.execute("SELECT pline_id AS id, title, meters, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
                 .done(function(data) {
                     var wktreader = new jsts.io.WKTReader();
                     var gfactory  = new jsts.geom.GeometryFactory();
@@ -74,7 +73,7 @@ var ROUTER = {
                     // hand off to our path-finder
                     // give the results back to our callback
                     try {
-                        var route = myself.assemblePath(start_edge, target_edge, data.rows, northbound);
+                        var route = self.assemblePath(start_edge, target_edge, data.rows, northbound);
                         success_callback(route);
                     }
                     catch (errmsg) {
@@ -85,6 +84,8 @@ var ROUTER = {
         });
     },
     assemblePath: function (start_edge, target_edge, universe_segments, northbound) {
+        var self = this;
+
         // a list of edges which we have determined are wrong: wrong forks, wrong direction
         var poisoned = {};
 
@@ -166,9 +167,14 @@ var ROUTER = {
             }
         } // end of potentially infinite loop
 
-        // done! hand it back to the caller
+        // done! hand off for more meta-processing, e.g. adding length and collapsing same-name trails
+        route = self.routeDecorate(route);
         return route;
     },
-    findDistance: function () {
+    routeDecorate: function (route) {
+        // analyze the steps to generate metadata such as "turn right" and the latlong location of this switchover
+
+        // and Bob's your uncle
+        return route;
     },
 };
