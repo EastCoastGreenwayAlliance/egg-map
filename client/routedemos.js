@@ -27,6 +27,15 @@ function success(route) {
         .addTo(MAP.route);
     });
     MAP.fitBounds(MAP.route.getBounds());
+
+    // go through the step transitions and add their markers to the map
+    route.forEach(function (routestep) {
+        L.marker([ routestep.transition.lat, routestep.transition.lng ], {
+            title: routestep.transition.title
+        })
+        .bindPopup(routestep.transition.title)
+        .addTo(MAP.transitions);
+    });
 }
 
 function error(errormessage) {

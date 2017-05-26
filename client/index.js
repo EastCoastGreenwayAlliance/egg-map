@@ -24,4 +24,7 @@ $(document).ready(function () {
 
     // MAP.route = a featureGroup where we'll stick the lines for visualization
     MAP.route = L.featureGroup([]).addTo(MAP);
+
+    // MAP.transitions = a featureGroup where we'll stick the transition point markersw
+    MAP.transitions = L.featureGroup([]).addTo(MAP);
 });

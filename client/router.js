@@ -167,12 +167,102 @@ var ROUTER = {
             }
         } // end of potentially infinite loop
 
-        // done! hand off for more meta-processing, e.g. adding length and collapsing same-name trails
+        // done! hand off for more meta-processing, e.g. turn directions, endpoint snapping
         route = self.routeDecorate(route);
         return route;
     },
     routeDecorate: function (route) {
-        // analyze the steps to generate metadata such as "turn right" and the latlong location of this switchover
+        // further cleanup of the solution graph
+
+        // segment flipping -- align each step's ending vertex to the next line's starting vertex
+        // this makes the vertices truly sequential along the route, which is relevant to:
+        // - generating elevation profile charts, as one would want the elevations in sequence
+        // - filling in gaps, by fudging the starting and ending points so they have the same vertex
+        // - generating turning directions, where one lines changes into the next
+        // http://gregorthemapguy.blogspot.com/2012/08/turning-directions-for-every-segment.html
+        //
+        // DON'T FORGET when flipping the linestring geometry TO ALSO update the firstpoint and lastpoint references
+        // as we will likely be comparing them for later phases of work
+        var gfactory = new jsts.geom.GeometryFactory();
+        for (var i=0, l=route.length-2; i<=l; i++) {
+            var thisstep = route[i];
+            var nextstep = route[i+1];
+
+            var dx11 = thisstep.firstpoint.distance(nextstep.firstpoint);
+            var dx22 = thisstep.lastpoint.distance(nextstep.lastpoint);
+            var dx12 = thisstep.firstpoint.distance(nextstep.lastpoint);
+            var dx21 = thisstep.lastpoint.distance(nextstep.firstpoint);
+            switch (Math.min(dx11, dx12, dx22, dx21)) {
+                case dx21:
+                    // this segment's end meets the next segment's start; great!
+                    console.log([ 'segment end align', thisstep.debug, nextstep.debug, 'ok as is' ]);
+                    break;
+                case dx11:
+                    // this segment's start meets the next segment's start; flip this one
+                    console.log([ 'segment end align', thisstep.debug, nextstep.debug, 'flip this' ]);
+
+                    thisstep.geom.geometries[0].points.coordinates.reverse();
+
+                    var thispoints      = thisstep.geom.getCoordinates();
+                    thisstep.firstpoint = gfactory.createPoint(thispoints[0]);
+                    thisstep.lastpoint  = gfactory.createPoint(thispoints[ thispoints.length-1 ]);
+
+                    break;
+                case dx12:
+                    // this segment's start meets the next segment's end; flip both
+                    console.log([ 'segment end align', thisstep.debug, nextstep.debug, 'flip both' ]);
+
+                    thisstep.geom.geometries[0].points.coordinates.reverse();
+                    nextstep.geom.geometries[0].points.coordinates.reverse();
+
+                    var thispoints      = thisstep.geom.getCoordinates();
+                    thisstep.firstpoint = gfactory.createPoint(thispoints[0]);
+                    thisstep.lastpoint  = gfactory.createPoint(thispoints[ thispoints.length-1 ]);
+
+                    var nextpoints      = nextstep.geom.getCoordinates();
+                    nextstep.firstpoint = gfactory.createPoint(nextpoints[0]);
+                    nextstep.lastpoint  = gfactory.createPoint(nextpoints[ nextpoints.length-1 ]);
+
+                    break;
+                case dx22:
+                    // this segment's end meets the next segment's end; flip next one
+                    console.log([ 'segment end align', thisstep.debug, nextstep.debug, 'flip next' ]);
+
+                    nextstep.geom.geometries[0].points.coordinates.reverse();
+
+                    var nextpoints      = nextstep.geom.getCoordinates();
+                    nextstep.firstpoint = gfactory.createPoint(nextpoints[0]);
+                    nextstep.lastpoint  = gfactory.createPoint(nextpoints[ nextpoints.length-1 ]);
+
+                    break;
+            }
+        }        
+
+        // go through the transitions and clean up non-matching ends, which form visible breaks where the segments don't really touch
+
+        // go through the transitions and generate a directions attribute by comparing the azimuth of the old path and the new path
+        // - human directions with the name "Turn right onto Schermerhorn Ct"
+        // - simplified directions fitting a domain "R"
+        // - latlong of this step-segment's lastpoint vertex for the location of this transition
+        //
+        // add to the final point a transition as well, so caller doesn't need to scramble with "if not segment.transition"
+        for (var i=0, l=route.length-2; i<=l; i++) {
+            var thisstep = route[i];
+            var nextstep = route[i+1];
+
+            thisstep.transition = {
+                lat: thisstep.lastpoint.coordinates.coordinates[0].y, // wow, no method for this?
+                lng: thisstep.lastpoint.coordinates.coordinates[0].x, // wow, no method for this?
+                title: thisstep.title + ' to ' + nextstep.title,
+            };
+        }
+
+        var thisstep = route[route.length-1];
+        thisstep.transition = {
+            lat: thisstep.lastpoint.coordinates.coordinates[0].y, // wow, no method for this?
+            lng: thisstep.lastpoint.coordinates.coordinates[0].x, // wow, no method for this?
+            title: 'Destination',
+        };
 
         // and Bob's your uncle
         return route;
