@@ -65,7 +65,7 @@ var ROUTER = {
                         segment.firstpoint = gfactory.createPoint(mypoints[0]);
                         segment.lastpoint  = gfactory.createPoint(mypoints[ mypoints.length-1 ]);
 
-                        var snaptolerance = 0.004; // about 100 ft; the topology is very broken
+                        var snaptolerance = 0.003; // about 75 ft; the topology is very broken
                         segment.firstpointsnap = segment.firstpoint.buffer(snaptolerance, 10);
                         segment.lastpointsnap  = segment.lastpoint.buffer(snaptolerance, 10);
 
