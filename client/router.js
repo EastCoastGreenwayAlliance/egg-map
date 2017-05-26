@@ -39,7 +39,8 @@ var ROUTER = {
                     w: Math.min(target_edge.w, start_edge.w) - 3.0,
                     dir: northbound ? 'N' : 'S'
                 };
-                db.execute("SELECT pline_id AS id, title, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
+                //gda//db.execute("SELECT pline_id AS id, title, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
+                db.execute("SELECT pline_id AS id, title, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}')", params)
                 .done(function(data) {
                     var wktreader = new jsts.io.WKTReader();
                     var gfactory  = new jsts.geom.GeometryFactory();
@@ -141,8 +142,6 @@ var ROUTER = {
                 // strip off the remainder of the route
                 // then let nextsegment remain null, so our next pass will be on that fork node with one less option
                 console.log([ 'dead end at:', here.debug ]);
-
-if (here.id == 766951) debugger;
 
                 if (route.length < 2) {
                     console.log([ 'dead end at our start; there is no route', route ]);

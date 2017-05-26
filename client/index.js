@@ -1,41 +1,25 @@
-function success(route) {
-    var $readout = $('#directions').empty();
-    route.forEach(function (routestep) {
-        $("<li></li>").text(routestep.debug).appendTo($readout);
+var MAP;
+
+var CARTO_VISUALIZATION_ID = "6ff63a84-423c-11e7-b1f7-0e3ebc282e83";
+
+$(document).ready(function () {
+    MAP = L.map('map', {
+    }).fitBounds([ [24.5646034, -81.8152815], [45.1783131, -67.2807404] ]);
+
+    L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors, © CartoDB',
+        zIndex: 0
+    }).addTo(MAP);
+
+    L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_only_labels/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors, © CartoDB',
+        zIndex: 100
+    }).addTo(MAP);
+
+    // a CARTO layer of the trail itself, for context
+    cartodb.createLayer(MAP, 'https://' + CARTODB_USER + '.carto.com/api/v2/viz/' + CARTO_VISUALIZATION_ID + '/viz.json').addTo(MAP).on('done', function(layer) {
     });
-}
 
-function error(errormessage) {
-    alert(errormessage);
-}
-
-function routeA() {
-    // 7th and Townsend St -> Drigger Blvd, near Darien, GA
-    $('#directions').empty();
-    ROUTER.findRoute(31.1811, -81.4993, 31.2795, -81.4393, success, error);
-}
-
-function routeB() {
-    // 7th and Townsend St -> 2nd St in Darien, GA
-    // overlaps the "A" demo significantly BUT ALSO jumps a break in the cue points, proving that they are not used
-    $('#directions').empty();
-    ROUTER.findRoute(31.1811, -81.4993, 31.3640, -81.4193, success, error);
-}
-
-function routeC() {
-    // Fernandina Beach GA  to St Augustine Beach, FL
-    $('#directions').empty();
-    ROUTER.findRoute(30.6774573, -81.4524394, 29.8398334,-81.2731937, success, error);
-}
-
-function routeD() {
-    // Daytona Beach FL to Pierson FL
-    $('#directions').empty();
-    ROUTER.findRoute(29.2088153,-81.1668217, 29.2336339,-81.4714865, success, error);
-}
-
-function routeE() {
-    // Durham NC to Greenville NC
-    $('#directions').empty();
-    ROUTER.findRoute(36.0020228,-79.0253383, 35.6030521,-77.4475665, success, error);
-}
+    // MAP.route = a featureGroup where we'll stick the lines for visualization
+    MAP.route = L.featureGroup([]).addTo(MAP);
+});
