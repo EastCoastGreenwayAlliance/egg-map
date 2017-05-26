@@ -30,11 +30,13 @@ var ROUTER = {
 
                 // fetch relevant route segments: allowed for northbound/southbound paths
                 // and with a bounding box filter to fetch only the relevant area, e.g. no Boston routes for a route within Florida
+                // tip: in theory a box of 0.2 degrees (10-12 miles-ish) could work, but for larger loops that just isn't right
+                // even loading the whole dataset is workable, but we'd rather not; so go with a pretty large buffer here
                 var params = {
-                    n: Math.max(target_edge.n, start_edge.n) + 0.2,
-                    s: Math.min(target_edge.s, start_edge.s) - 0.2,
-                    e: Math.max(target_edge.e, start_edge.e) + 0.2,
-                    w: Math.min(target_edge.w, start_edge.w) - 0.2,
+                    n: Math.max(target_edge.n, start_edge.n) + 3.0,
+                    s: Math.min(target_edge.s, start_edge.s) - 3.0,
+                    e: Math.max(target_edge.e, start_edge.e) + 3.0,
+                    w: Math.min(target_edge.w, start_edge.w) - 3.0,
                     dir: northbound ? 'N' : 'S'
                 };
                 db.execute("SELECT pline_id AS id, title, ST_ASTEXT(the_geom) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
@@ -60,8 +62,9 @@ var ROUTER = {
                         segment.firstpoint = gfactory.createPoint(mypoints[0]);
                         segment.lastpoint  = gfactory.createPoint(mypoints[ mypoints.length-1 ]);
 
-                        segment.firstpointsnap = segment.firstpoint.buffer(0.002, 10); // about 50ft
-                        segment.lastpointsnap  = segment.lastpoint.buffer(0.002, 10);  // about 50ft
+                        var snaptolerance = 0.004; // about 100 ft; the topology is very broken
+                        segment.firstpointsnap = segment.firstpoint.buffer(snaptolerance, 10);
+                        segment.lastpointsnap  = segment.lastpoint.buffer(snaptolerance, 10);
 
                         // done
                         return segment;
@@ -138,6 +141,15 @@ var ROUTER = {
                 // strip off the remainder of the route
                 // then let nextsegment remain null, so our next pass will be on that fork node with one less option
                 console.log([ 'dead end at:', here.debug ]);
+
+if (here.id == 766951) debugger;
+
+                if (route.length < 2) {
+                    console.log([ 'dead end at our start; there is no route', route ]);
+                    throw "No route could be found between these locations.";
+                    break;
+                }
+
                 for (var i=route.length-1 ; i >= 0; i--) {
                     if (! route[i].fork) continue;
                     console.log([ "last fork was at step:", i, route[i].debug ]);

@@ -29,7 +29,7 @@ function routeC() {
 }
 
 function routeD() {
-    // Pierson FL to Daytona Beach FL
+    // Daytona Beach FL to Pierson FL
     $('#directions').empty();
     ROUTER.findRoute(29.2088153,-81.1668217, 29.2336339,-81.4714865, success, error);
 }
