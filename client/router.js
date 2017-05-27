@@ -1,3 +1,25 @@
+/*
+ * ROUTER routing class for ECG data
+ * Gregor Allensworth   gregor@greeninfo.org
+ * apololgies in advance for it not being a proper ES6 class
+ *
+ * Params:
+ * ROUTER.findRoute(start_lat, start_lng, target_lat, target_lng, success_callback, failure_callback)
+ *
+ * Return:
+ * A GeoJSON-compliant structure suited for consumption by Leaflet or almost anything
+ *
+ * Feature properties are:
+ * id -- The ID# of the line in CartoDB.
+ * title -- The name of the road or trail which this line represents.
+ * length -- Length of this section, in meters.
+ * transition -- Metadata about the transition to the next segment on the route.
+ * transition.title -- Human-readable text for this transition, e.g. "Turn left onto Hayward Avenue"
+ * transition.lat -- The latitude at which the transition occurs.
+ * transition.lng -- The longitude at which the transition occurs.
+ * transition.code -- A domain code indicating the type of transition, e.g. "RT" for a right turn. This domain-coded version would be suited to selecting icons. Search this document for TRANSITION_CODES to see the list.
+ */
+
 var CARTODB_USER = 'greeninfo';
 
 var DBTABLE_EDGES = "ecglines_clean_unique";
@@ -172,7 +194,7 @@ var ROUTER = {
 
         // done! hand off for more meta-processing, e.g. turn directions, endpoint snapping
         route = self.routeDecorate(route);
-        return route;
+        return self.routeSerialize(route);
     },
     routeDecorate: function (route) {
         // further cleanup of the solution graph
@@ -242,6 +264,7 @@ var ROUTER = {
         }        
 
         // go through the transitions and clean up non-matching ends, which form visible breaks where the segments don't really touch
+        // effectively, fudge the last point of the previous trail to be the same as the first point of next, so they will overlap
 //GDA todo
 
         // go through the transitions and generate a directions attribute by comparing the azimuth of the old path and the new path
@@ -251,7 +274,7 @@ var ROUTER = {
         //
         // add to the final point a transition as well, so caller doesn't need to scramble with "if not segment.transition"
 
-        var transition_codes = {
+        var TRANSITION_CODES = {
             RIGHT_TURN: { code: 'RT', text: "Turn right onto " },
             RIGHT_SOFT: { code: 'RS', text: "Bear right onto " },
             RIGHT_HARD: { code: 'RH', text: "Turn sharply right onto " },
@@ -295,14 +318,14 @@ var ROUTER = {
             if (angle < -180) angle = angle + 360;
             console.log([ 'turning', thisstep.debug, nextstep.debug, thisaz, nextaz, angle ]);
 
-            var turntype = transition_codes.OTHER;
-            if      (angle >= -30 && angle <= 30)   turntype = transition_codes.STRAIGHT;
-            else if (angle >= 31  && angle <= 60)   turntype = transition_codes.RIGHT_SOFT;
-            else if (angle >= 61  && angle <= 100)  turntype = transition_codes.RIGHT_TURN;
-            else if (angle >= 101)                  turntype = transition_codes.RIGHT_HARD;
-            else if (angle <= -30 && angle >= -60)  turntype = transition_codes.LEFT_SOFT;
-            else if (angle <= -61 && angle >= -100) turntype = transition_codes.LEFT_TURN;
-            else if (angle <= -101)                 turntype = transition_codes.LEFT_HARD;
+            var turntype = TRANSITION_CODES.OTHER;
+            if      (angle >= -30 && angle <= 30)   turntype = TRANSITION_CODES.STRAIGHT;
+            else if (angle >= 31  && angle <= 60)   turntype = TRANSITION_CODES.RIGHT_SOFT;
+            else if (angle >= 61  && angle <= 100)  turntype = TRANSITION_CODES.RIGHT_TURN;
+            else if (angle >= 101)                  turntype = TRANSITION_CODES.RIGHT_HARD;
+            else if (angle <= -30 && angle >= -60)  turntype = TRANSITION_CODES.LEFT_SOFT;
+            else if (angle <= -61 && angle >= -100) turntype = TRANSITION_CODES.LEFT_TURN;
+            else if (angle <= -101)                 turntype = TRANSITION_CODES.LEFT_HARD;
 
             thisstep.transition = {
                 lat: thisstep.lastpoint.coordinates.coordinates[0].y, // wow, no method for this?
@@ -317,11 +340,37 @@ var ROUTER = {
         thisstep.transition = {
             lat: thisstep.lastpoint.coordinates.coordinates[0].y, // wow, no method for this?
             lng: thisstep.lastpoint.coordinates.coordinates[0].x, // wow, no method for this?
-            code: transition_codes.ARRIVE.code,
-            title: transition_codes.ARRIVE.text,
+            code: TRANSITION_CODES.ARRIVE.code,
+            title: TRANSITION_CODES.ARRIVE.text,
         };
 
         // and Bob's your uncle
         return route;
     },
+    routeSerialize: function (route) {
+        // final prep for hanging back the route
+        // massage it into a GeoJSON-shaped structure, so it's ready to consume by almost anything
+        var self = this;
+
+        var wktwriter = new jsts.io.GeoJSONWriter();
+
+        var structure = {
+            type: "FeatureCollection",
+            features: route.map(function (routestep) {    
+                var feature = wktwriter.write(routestep.geom);
+
+                feature.properties = {
+                    id: routestep.id,
+                    title: routestep.title,
+                    length: routestep.meters,
+                    transition: routestep.transition,
+                };
+
+                return feature;
+            })
+        };
+
+        // done!
+        return structure;
+    }
 };
