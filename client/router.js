@@ -208,6 +208,8 @@ var ROUTER = {
         //
         // DON'T FORGET when flipping the linestring geometry TO ALSO update the firstpoint and lastpoint references
         // as we will likely be comparing them for later phases of work
+        //
+        // tip: Point.clone() does not work, thus the use of gfactory
         var gfactory = new jsts.geom.GeometryFactory();
         for (var i=0, l=route.length-2; i<=l; i++) {
             var thisstep = route[i];
@@ -265,7 +267,20 @@ var ROUTER = {
 
         // go through the transitions and clean up non-matching ends, which form visible breaks where the segments don't really touch
         // effectively, fudge the last point of the previous trail to be the same as the first point of next, so they will overlap
-//GDA todo
+        for (var i=0, l=route.length-2; i<=l; i++) {
+            var thisstep = route[i];
+            var nextstep = route[i+1];
+            // if the distance between the two points is quite close, don't bother; the topology is destined for a significant cleanup which will solve many of them
+            var dx = thisstep.lastpoint.distance(nextstep.firstpoint);
+            if (dx < 0.0001) continue;
+
+            // clone the next segment's starting point, append it to our linestring; don't forget to update our lastpoint
+            // this is way off API, modifying the geometry in place
+            var newpoint = gfactory.createPoint(nextstep.firstpoint.coordinates.coordinates[0]);
+            console.log([ 'patching gap', thisstep.debug, nextstep.debug, newpoint ]);
+            thisstep.geom.geometries[0].points.coordinates.push(newpoint.coordinates.coordinates[0]);
+            thisstep.lastpoint = newpoint;
+        }
 
         // go through the transitions and generate a directions attribute by comparing the azimuth of the old path and the new path
         // - human directions with the name "Turn right onto Schermerhorn Ct"
