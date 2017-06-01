@@ -25,46 +25,42 @@ var CARTODB_USER = 'greeninfo';
 var DBTABLE_EDGES = "ecglines_clean_unique";
 
 var ROUTER = {
-    // main entry point
-    // start lat, start lng, end lat, end lng
+    //
+    // main entry point: find a route from start lat+lng to target lat+lng, prettied up with turning directions and all
+    // wraps several other functions to find start/end nodes, assemble a path, clean up topology, add turning words, etc.
+    // asynchronous: provide success + failure callbacks
+    //
     findRoute: function (start_lat, start_lng, target_lat, target_lng, success_callback, failure_callback) {
         var self = this;
 
-        // a database handle
-        var db = new cartodb.SQL({ user: CARTODB_USER });
-
         // is this northbound or southbound? the edges and cues are tagged with N/S/B as a proxy for one-way behavior
+        //TODO is that really how they want to do things?
+        //TODO e.g. Pierson, FL to Daytona Beach, FL is east-northeast but the northern route is the longer
+        //TODO perhaps the one-way field is better for this, indicating that travel must be in the direction of the vertices?
         var northbound = start_lat >= target_lat;
 
         // find the best edges for our starting and ending location
-        var start_edge, target_edge;
-        var get_edge_sql = "SELECT pline_id AS id, title, ST_XMAX(the_geom) AS e, ST_XMIN(the_geom) AS w, ST_YMIN(the_geom) AS s, ST_YMAX(the_geom) AS n FROM " + DBTABLE_EDGES + " ORDER BY the_geom <-> ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326) LIMIT 1";
-        db.execute(get_edge_sql, { lng: start_lng, lat: start_lat })
-        .done(function(data) {
-            start_edge = data.rows[0];
-
-            db.execute(get_edge_sql, { lng: target_lng, lat: target_lat })
-            .done(function(data) {
-                target_edge = data.rows[0];
-
-                console.log([ 'start edge', start_lat, start_lng, start_edge ]);
-                console.log([ 'target edge', target_lat, target_lng, target_edge ]);
+        self.findNearestSegmentToLatLng(start_lat, start_lng, function (start_segment) {
+            self.findNearestSegmentToLatLng(target_lat, target_lng, function (target_segment) {
+                console.log([ 'start segment', start_lat, start_lng, start_segment ]);
+                console.log([ 'target segment', target_lat, target_lng, target_segment ]);
 
                 // fetch relevant route segments: allowed for northbound/southbound paths
                 // and with a bounding box filter to fetch only the relevant area, e.g. no Boston routes for a route within Florida
                 // tip: in theory a box of 0.2 degrees (10-12 miles-ish) could work, but for larger loops that just isn't right
                 // even loading the whole dataset is workable, but we'd rather not; so go with a pretty large buffer here
                 var params = {
-                    n: Math.max(target_edge.n, start_edge.n) + 3.0,
-                    s: Math.min(target_edge.s, start_edge.s) - 3.0,
-                    e: Math.max(target_edge.e, start_edge.e) + 3.0,
-                    w: Math.min(target_edge.w, start_edge.w) - 3.0,
+                    n: Math.max(target_segment.n, start_segment.n) + 3.0,
+                    s: Math.min(target_segment.s, start_segment.s) - 3.0,
+                    e: Math.max(target_segment.e, start_segment.e) + 3.0,
+                    w: Math.min(target_segment.w, start_segment.w) - 3.0,
                     dir: northbound ? 'N' : 'S'
                 };
 
                 var geomtext = "ST_SIMPLIFY(the_geom,0.0001)"; // a teeny-tiny simplification to clean some of their flourishes that have wonky angles at starts and ends
 
-                db.execute("SELECT pline_id AS id, title, meters, ST_ASTEXT(" + geomtext + ") AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
+                new cartodb.SQL({ user: CARTODB_USER })
+                .execute("SELECT pline_id AS id, title, meters, ST_ASTEXT(" + geomtext + ") AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
                 .done(function(data) {
                     var wktreader = new jsts.io.WKTReader();
                     var gfactory  = new jsts.geom.GeometryFactory();
@@ -98,16 +94,55 @@ var ROUTER = {
                     // hand off to our path-finder
                     // give the results back to our callback
                     try {
-                        var route = self.assemblePath(start_edge, target_edge, data.rows, northbound);
+                        var route = self.assemblePath(start_segment, target_segment, data.rows, northbound);
                         success_callback(route);
                     }
                     catch (errmsg) {
                         failure_callback(errmsg);
                     }
+                })
+                .error(function (errors) {
+                    var errmsg = "error fetching lines universe:" + errors[0];
+                    failure_callback(errmsg);
                 });
-            });
+            },
+            function (errors) {
+                var errmsg = "error finding target segment:" + errors[0];
+                failure_callback(errmsg);
+            })
+        },
+        function (errors) {
+            var errmsg = "error finding start segment:" + errors[0];
+            failure_callback(errmsg);
         });
     },
+
+    //
+    // utility function: find the nearest segment to the given latlng
+    // asynchronous: provide success + failure callbacks
+    // success -- will be passed 1 param: the resulting segment
+    // error -- will be passed 1 param: array of error messages
+    //
+    findNearestSegmentToLatLng: function (lat, lng, success_callback, failure_callback) {
+        var closest_segment;
+
+        var sql = "SELECT pline_id AS id, title, ST_XMAX(the_geom) AS e, ST_XMIN(the_geom) AS w, ST_YMIN(the_geom) AS s, ST_YMAX(the_geom) AS n FROM " + DBTABLE_EDGES + " ORDER BY the_geom <-> ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326) LIMIT 1";
+        var params = { lng: lng, lat: lat };
+
+        new cartodb.SQL({ user: CARTODB_USER })
+        .execute(sql, params)
+        .done(function(data) {
+            closest_segment = data.rows[0];
+            success_callback(closest_segment);
+        })
+        .error(function(errors) {
+            failure_callback(errors);
+        });
+    },
+
+    //
+    // internal function: given a universe of edges/segments, find a path from start to end
+    //
     assemblePath: function (start_edge, target_edge, universe_segments, northbound) {
         var self = this;
 
@@ -196,9 +231,13 @@ var ROUTER = {
         route = self.routeDecorate(route);
         return self.routeSerialize(route);
     },
-    routeDecorate: function (route) {
-        // further cleanup of the solution graph
 
+    //
+    // internal function: given a completed path from assemblePath() do some cleanup to it
+    // flip segments end-to-end so they have a consistent sequence
+    // give each segment a "transition" object describing the turn and the transition
+    //
+    routeDecorate: function (route) {
         // segment flipping -- align each step's ending vertex to the next line's starting vertex
         // this makes the vertices truly sequential along the route, which is relevant to:
         // - generating elevation profile charts, as one would want the elevations in sequence
@@ -362,6 +401,11 @@ var ROUTER = {
         // and Bob's your uncle
         return route;
     },
+
+    //
+    // internal / utility function: given a completed and decorated route from routeDecorate()
+    // serialize the sequence of linestrings into a GeoJSON document, ready for consumption
+    //
     routeSerialize: function (route) {
         // final prep for hanging back the route
         // massage it into a GeoJSON-shaped structure, so it's ready to consume by almost anything
