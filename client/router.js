@@ -29,6 +29,8 @@ var ROUTER = {
     // main entry point: find a route from start lat+lng to target lat+lng, prettied up with turning directions and all
     // wraps several other functions to find start/end nodes, assemble a path, clean up topology, add turning words, etc.
     // asynchronous: provide success + failure callbacks
+    // success -- will be passed 1 param: a GeoJSON document of the segments representing the route
+    // error -- will be passed 1 param: error message
     //
     findRoute: function (start_lat, start_lng, target_lat, target_lng, success_callback, failure_callback) {
         var self = this;
@@ -102,18 +104,16 @@ var ROUTER = {
                     }
                 })
                 .error(function (errors) {
-                    var errmsg = "error fetching lines universe:" + errors[0];
+                    var errmsg = "error fetching lines universe: " + errors[0];
                     failure_callback(errmsg);
                 });
             },
-            function (errors) {
-                var errmsg = "error finding target segment:" + errors[0];
-                failure_callback(errmsg);
+            function (errmsg) {
+                failure_callback("error finding target segment: " + errmsg);
             })
         },
-        function (errors) {
-            var errmsg = "error finding start segment:" + errors[0];
-            failure_callback(errmsg);
+        function (errmsg) {
+            failure_callback("error finding start segment: " + errmsg);
         });
     },
 
@@ -121,7 +121,7 @@ var ROUTER = {
     // utility function: find the nearest segment to the given latlng
     // asynchronous: provide success + failure callbacks
     // success -- will be passed 1 param: the resulting segment
-    // error -- will be passed 1 param: array of error messages
+    // error -- will be passed 1 param: error message
     //
     findNearestSegmentToLatLng: function (lat, lng, success_callback, failure_callback) {
         var closest_segment;
@@ -136,7 +136,8 @@ var ROUTER = {
             success_callback(closest_segment);
         })
         .error(function(errors) {
-            failure_callback(errors);
+            var errmsg = "findNearestSegmentToLatLng failed: " + errors[0];
+            failure_callback(errmsg);
         });
     },
 
