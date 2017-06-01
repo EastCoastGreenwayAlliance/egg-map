@@ -53,7 +53,15 @@ function success(routejsondocument) {
             var miles = (feature.properties.length / 1609).toFixed(1);
             var popuphtml = 'Transition code ' + feature.properties.transition.code + '<br/>' + 'Leaving ' + feature.properties.id + ' ' + feature.properties.title + '<br/>' + 'after ' + miles + ' ' + 'miles' + '<br/>'
 
+            var icon = new L.Icon({
+                iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+            });
+
             L.marker([ feature.properties.transition.lat, feature.properties.transition.lng ], {
+                icon: icon,
                 title: feature.properties.transition.title
             })
             .bindPopup(popuphtml)
@@ -194,15 +202,67 @@ function routeE() {
     ROUTER.findRoute(36.0020228,-79.0253383, 35.6030521,-77.4475665, success, error);
 }
 
-function routeF() {
-    // West Palm Beach, FL to Wilington, NC
-    reset();
-    ROUTER.findRoute(26.7350102,-80.0997134, 34.2072579,-77.9417877, success, error);
-}
-
 function routeZ() {
     // Key West, FL to Calais, ME
     // the complete length of the whole trail
     reset();
     ROUTER.findRoute(24.5646034,-81.8152815, 45.1783131,-67.2807404, success, error);
+}
+
+function routeZ01() { // Key West, FL to Hollywood, FL
+    reset(); ROUTER.findRoute(24.5646034,-81.8152815, 26.0112, -80.1495, success, error);
+}
+function routeZ02() { // Hollywood, FL to Fort Pierce, FL
+    reset(); ROUTER.findRoute(26.0112, -80.1495, 27.4467, -80.3256, success, error);
+}
+function routeZ03() { // Fort Pierce, FL to Pierson, FL
+    reset(); ROUTER.findRoute(27.4467, -80.3256, 29.2336339, -81.4714865, success, error);
+}
+function routeZ04() { // Pierson, FL to Kingsland, GA
+    reset(); ROUTER.findRoute(29.2336339, -81.4714865, 30.8000, -81.6898, success, error);
+}
+function routeZ05() { // Kingsland, GA to Darien, GA
+    reset(); ROUTER.findRoute(30.8000, -81.6898, 31.3702, -81.4340, success, error);
+}
+function routeZ06() { // Darien, GA to Savannah, GA
+    reset(); ROUTER.findRoute(31.3702, -81.4340, 32.0835, -81.0998, success, error);
+}
+function routeZ07() { // Savannah, GA to Charleston, NC
+    reset(); ROUTER.findRoute(32.0835, -81.0998, 32.776566, -79.930923, success, error);
+}
+function routeZ08() { // Charleston, NC to Baltimore, MD
+    reset(); ROUTER.findRoute(32.776566, -79.930923, 39.2904, -76.6122, success, error);
+}
+function routeZ09() { // Baltimore, MD to Trenton, NJ
+    reset(); ROUTER.findRoute(39.2904, -76.6122, 40.2171, -74.7429, success, error);
+}
+function routeZ10() { // Trenton, NJ to Bronx, NY
+    reset(); ROUTER.findRoute(40.2171, -74.7429, 40.8448, -73.8648, success, error);
+}
+function routeZ11() { // New York City, NY to Bridgeport, CT
+    reset(); ROUTER.findRoute(40.7128, -74.0059, 41.1865, -73.1952, success, error);
+}
+function routeZ12() { // Bridgeport, CT to Hartford, CT
+    reset(); ROUTER.findRoute(41.1865, -73.1952, 41.7637, -72.6851, success, error);
+}
+function routeZ13() { // Hartford, CT to Providence, RI
+    reset(); ROUTER.findRoute(41.7637, -72.6851, 41.8240, -71.4128, success, error);
+}
+function routeZ14() { // Providence, RI to Eastham, MA
+    reset(); ROUTER.findRoute(41.8240, -71.4128, 41.8300, -69.9740, success, error);
+}
+function routeZ15() { // Eastham, MA to Seabrook, ME
+    reset(); ROUTER.findRoute(41.8300, -69.9740, 42.8910, -70.8655, success, error);
+}
+function routeZ16() { // Seabrook, ME to Brunswick, ME
+    reset(); ROUTER.findRoute(42.8910, -70.8655, 43.9140, -69.9670, success, error);
+}
+function routeZ17() { // Brunswick, ME to Bangor, ME
+    reset(); ROUTER.findRoute(43.9140, -69.9670, 44.8012, -68.7778, success, error);
+}
+function routeZ18() { // Bangor, ME to Machias, ME
+    reset(); ROUTER.findRoute(44.8012, -68.7778, 44.7151, -67.4614, success, error);
+}
+function routeZ19() { // Machias, ME to Calais, ME on a southbound street requiring some right turns
+    reset(); ROUTER.findRoute(44.71354289, -67.46046, 45.1783,-67.2807, success, error);
 }

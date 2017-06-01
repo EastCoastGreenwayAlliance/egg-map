@@ -48,30 +48,31 @@ var ROUTER = {
         //TODO is that really how they want to do things?
         //TODO e.g. Pierson, FL to Daytona Beach, FL is east-northeast but the northern route is the longer
         //TODO perhaps the one-way field is better for this, indicating that travel must be in the direction of the vertices?
-        var northbound = start_lat >= target_lat;
+        var northbound = start_lat <= target_lat;
 
         // find the best edges for our starting and ending location
-        self.findNearestSegmentToLatLng(start_lat, start_lng, function (start_segment) {
-            self.findNearestSegmentToLatLng(target_lat, target_lng, function (target_segment) {
+        self.findNearestSegmentToLatLng(start_lat, start_lng, northbound ? 'N' : 'S', function (start_segment) {
+            self.findNearestSegmentToLatLng(target_lat, target_lng, northbound ? 'N' : 'S', function (target_segment) {
                 console.log([ 'start segment', start_lat, start_lng, start_segment ]);
                 console.log([ 'target segment', target_lat, target_lng, target_segment ]);
 
-                // fetch relevant route segments: allowed for northbound/southbound paths
-                // and with a bounding box filter to fetch only the relevant area, e.g. no Boston routes for a route within Florida
-                // tip: in theory a box of 0.2 degrees (10-12 miles-ish) could work, but for larger loops that just isn't right
-                // even loading the whole dataset is workable, but we'd rather not; so go with a pretty large buffer here
+                // fetch relevant route segments
+                // loading the whole dataset can be workable over a fast connection, but we'd rather not
+                // and a bounding box filter to fetch only the relevant area; no path near Boston can be relevant to a route within Florida
                 var params = {
-                    n: Math.max(target_segment.n, start_segment.n) + 3.0,
-                    s: Math.min(target_segment.s, start_segment.s) - 3.0,
-                    e: Math.max(target_segment.e, start_segment.e) + 3.0,
-                    w: Math.min(target_segment.w, start_segment.w) - 3.0,
+                    n: Math.max(target_segment.n, start_segment.n) + 1.0,
+                    s: Math.min(target_segment.s, start_segment.s) - 1.0,
+                    e: Math.max(target_segment.e, start_segment.e) + 1.0,
+                    w: Math.min(target_segment.w, start_segment.w) - 1.0,
                     dir: northbound ? 'N' : 'S'
                 };
 
                 var geomtext = "ST_SIMPLIFY(the_geom,0.0001)"; // a teeny-tiny simplification to clean some of their flourishes that have wonky angles at starts and ends
 
+                var sql = "SELECT pline_id AS id, title, meters, ST_ASTEXT(" + geomtext + ") AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)";
+
                 new cartodb.SQL({ user: CARTODB_USER })
-                .execute("SELECT pline_id AS id, title, meters, ST_ASTEXT(" + geomtext + ") AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)", params)
+                .execute(sql, params)
                 .done(function(data) {
                     var wktreader = new jsts.io.WKTReader();
                     var gfactory  = new jsts.geom.GeometryFactory();
@@ -94,7 +95,7 @@ var ROUTER = {
                         segment.firstpoint = gfactory.createPoint(mypoints[0]);
                         segment.lastpoint  = gfactory.createPoint(mypoints[ mypoints.length-1 ]);
 
-                        var snaptolerance = 0.003; // about 75 ft; the topology is very broken
+                        var snaptolerance = 0.002; // about 50 ft; the topology is very broken
                         segment.firstpointsnap = segment.firstpoint.buffer(snaptolerance, 10);
                         segment.lastpointsnap  = segment.lastpoint.buffer(snaptolerance, 10);
 
@@ -105,6 +106,7 @@ var ROUTER = {
                     // hand off to our path-finder
                     // tack on some metadata to the resulting list of segments
                     // then pass the results through cleanup and serialization
+                    console.log('downloaded ' + data.rows.length + ' segments, starting assembly');
                     try {
                         var route = self.assemblePath(start_segment, target_segment, data.rows, northbound);
 
@@ -143,10 +145,23 @@ var ROUTER = {
     // success -- will be passed 1 param: the resulting segment
     // error -- will be passed 1 param: error message
     //
-    findNearestSegmentToLatLng: function (lat, lng, success_callback, failure_callback) {
+    findNearestSegmentToLatLng: function (lat, lng, direction, success_callback, failure_callback) {
         var closest_segment;
 
-        var sql = "SELECT pline_id AS id, title, ST_DISTANCE(the_geom::geography, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326)::geography) AS closest_distance, ST_Y(ST_CLOSESTPOINT(the_geom, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326))) AS closest_lat, ST_X(ST_CLOSESTPOINT(the_geom, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326))) AS closest_lng, ST_XMAX(the_geom) AS e, ST_XMIN(the_geom) AS w, ST_YMIN(the_geom) AS s, ST_YMAX(the_geom) AS n FROM " + DBTABLE_EDGES + " ORDER BY the_geom <-> ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326) LIMIT 1";
+console.log('gda ' + direction );
+        var directionclause = "TRUE";
+        switch (direction) {
+            case 'N': // N trails only
+                directionclause = "direction IN ('B', 'N')"
+                break;
+            case 'S': // S trails only
+                directionclause = "direction IN ('B', 'S')"
+                break;
+            default: // undefined, null, etc. do not filter by directionality
+                break;
+        }
+
+        var sql = "SELECT pline_id AS id, title, ST_DISTANCE(the_geom::geography, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326)::geography) AS closest_distance, ST_Y(ST_CLOSESTPOINT(the_geom, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326))) AS closest_lat, ST_X(ST_CLOSESTPOINT(the_geom, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326))) AS closest_lng, ST_XMAX(the_geom) AS e, ST_XMIN(the_geom) AS w, ST_YMIN(the_geom) AS s, ST_YMAX(the_geom) AS n FROM " + DBTABLE_EDGES + " WHERE " + directionclause + " ORDER BY the_geom <-> ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326) LIMIT 1";
         var params = { lng: lng, lat: lat };
 
         new cartodb.SQL({ user: CARTODB_USER })
@@ -175,7 +190,7 @@ var ROUTER = {
         var poisoned = {};
 
         // from our universe, extract the target edge
-        // we'll refer to this to check our distance to see whethwe r're going right or wrong (Manhattan heuristic)
+        // we'll refer to this to check our distance to see whether we are going the right direction (Manhattan heuristic)
         var target_geom = universe_segments.filter(function (segment) {
             return segment.id == target_segment.id;
         })[0];
@@ -185,6 +200,7 @@ var ROUTER = {
         var route = universe_segments.filter(function (segment) {
             return segment.id == start_segment.id;
         });
+//gda TODO if no route, basically true forever...
         poisoned[ start_segment.id ] = true;
 
         // the big loop
