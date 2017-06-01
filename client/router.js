@@ -18,6 +18,15 @@
  * transition.lat -- The latitude at which the transition occurs.
  * transition.lng -- The longitude at which the transition occurs.
  * transition.code -- A domain code indicating the type of transition, e.g. "RT" for a right turn. This domain-coded version would be suited to selecting icons. Search this document for TRANSITION_CODES to see the list.
+ *
+ * Additionally, the structure contains a .properties attribute of its own, containing medatata about the route. The attributes of route.properties are as follows:
+ * total_meters -- The total length of the route in meters, summed from the individual steps.
+ * startpoint_wanted -- The desired starting latlng. GeoJSON-compliant point feature object.
+ * endpoint_wanted -- The desired ending latlng. GeoJSON-compliant point feature object.
+ * startpoint_trail -- The closest latlng on the route to the desired starting latlng. GeoJSON-compliant point feature object.
+ * endpoint_trail -- The closest latlng on the route to the desired starting latlng. GeoJSON-compliant point feature object.
+ * startpoint_meters -- The distance in meters, between startpoint_wanted and startpoint_trail.
+ * endpoint_meters -- The distance in meters, between endpoint_wanted and endpoint_trail.
  */
 
 var CARTODB_USER = 'greeninfo';
@@ -94,9 +103,20 @@ var ROUTER = {
                     });
 
                     // hand off to our path-finder
-                    // give the results back to our callback
+                    // tack on some metadata to the resulting list of segments
+                    // then pass the results through cleanup and serialization
                     try {
                         var route = self.assemblePath(start_segment, target_segment, data.rows, northbound);
+
+                        route.start_lat      = start_lat;
+                        route.start_lng      = start_lng;
+                        route.target_lat     = target_lat;
+                        route.target_lng     = target_lng;
+                        route.start_segment  = start_segment;
+                        route.target_segment = target_segment;
+
+                        route = self.routeDecorate(route);
+                        route = self.routeSerialize(route);
                         success_callback(route);
                     }
                     catch (errmsg) {
@@ -126,13 +146,17 @@ var ROUTER = {
     findNearestSegmentToLatLng: function (lat, lng, success_callback, failure_callback) {
         var closest_segment;
 
-        var sql = "SELECT pline_id AS id, title, ST_XMAX(the_geom) AS e, ST_XMIN(the_geom) AS w, ST_YMIN(the_geom) AS s, ST_YMAX(the_geom) AS n FROM " + DBTABLE_EDGES + " ORDER BY the_geom <-> ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326) LIMIT 1";
+        var sql = "SELECT pline_id AS id, title, ST_DISTANCE(the_geom::geography, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326)::geography) AS closest_distance, ST_Y(ST_CLOSESTPOINT(the_geom, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326))) AS closest_lat, ST_X(ST_CLOSESTPOINT(the_geom, ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326))) AS closest_lng, ST_XMAX(the_geom) AS e, ST_XMIN(the_geom) AS w, ST_YMIN(the_geom) AS s, ST_YMAX(the_geom) AS n FROM " + DBTABLE_EDGES + " ORDER BY the_geom <-> ST_SETSRID(ST_MAKEPOINT({{ lng }}, {{ lat }}), 4326) LIMIT 1";
         var params = { lng: lng, lat: lat };
 
         new cartodb.SQL({ user: CARTODB_USER })
         .execute(sql, params)
         .done(function(data) {
             closest_segment = data.rows[0];
+
+            closest_segment.wanted_lat = lat; // decorate with the actually-requested lat+lng
+            closest_segment.wanted_lng = lng; // decorate with the actually-requested lat+lng
+
             success_callback(closest_segment);
         })
         .error(function(errors) {
@@ -144,32 +168,32 @@ var ROUTER = {
     //
     // internal function: given a universe of edges/segments, find a path from start to end
     //
-    assemblePath: function (start_edge, target_edge, universe_segments, northbound) {
+    assemblePath: function (start_segment, target_segment, universe_segments, northbound) {
         var self = this;
 
-        // a list of edges which we have determined are wrong: wrong forks, wrong direction
+        // a list of edges which we have already traversed: so we never go backward esp. when exploring forks
         var poisoned = {};
 
         // from our universe, extract the target edge
         // we'll refer to this to check our distance to see whethwe r're going right or wrong (Manhattan heuristic)
         var target_geom = universe_segments.filter(function (segment) {
-            return segment.id == target_edge.id;
+            return segment.id == target_segment.id;
         })[0];
 
         // start by pulling from the universe, our first edge
         // then poison it so we don't try to re-cross our own starting point
         var route = universe_segments.filter(function (segment) {
-            return segment.id == start_edge.id;
+            return segment.id == start_segment.id;
         });
-        poisoned[ start_edge.id ] = true;
+        poisoned[ start_segment.id ] = true;
 
         // the big loop
         // starting at our latest segment, find all other segments which touch it (more or less) and they are candidates for our next step
         // unless they've been poisoned (tagged as backward)
         while (true) {
             var here = route[ route.length-1 ];
-            if (here.id == target_edge.id) console.log([ "arrived", here.debug ]);
-            if (here.id == target_edge.id) break; // we're there! done!
+            if (here.id == target_segment.id) console.log([ "arrived", here.debug ]);
+            if (here.id == target_segment.id) break; // we're there! done!
 
             console.log([ "current location:", here.debug ]);
             var candidates = universe_segments.filter(function (candidate) {
@@ -228,9 +252,8 @@ var ROUTER = {
             }
         } // end of potentially infinite loop
 
-        // done! hand off for more meta-processing, e.g. turn directions, endpoint snapping
-        route = self.routeDecorate(route);
-        return self.routeSerialize(route);
+        // done assembling the path; hand back to caller, probably for postprocessing
+        return route;
     },
 
     //
@@ -239,6 +262,10 @@ var ROUTER = {
     // give each segment a "transition" object describing the turn and the transition
     //
     routeDecorate: function (route) {
+        // tip: Point.clone() does not work, thus the use of gfactory
+        // also to compose new point objects based on route metadata
+        var gfactory = new jsts.geom.GeometryFactory();
+
         // segment flipping -- align each step's ending vertex to the next line's starting vertex
         // this makes the vertices truly sequential along the route, which is relevant to:
         // - generating elevation profile charts, as one would want the elevations in sequence
@@ -248,9 +275,6 @@ var ROUTER = {
         //
         // DON'T FORGET when flipping the linestring geometry TO ALSO update the firstpoint and lastpoint references
         // as we will likely be comparing them for later phases of work
-        //
-        // tip: Point.clone() does not work, thus the use of gfactory
-        var gfactory = new jsts.geom.GeometryFactory();
         for (var i=0, l=route.length-2; i<=l; i++) {
             var thisstep = route[i];
             var nextstep = route[i+1];
@@ -399,6 +423,20 @@ var ROUTER = {
             title: TRANSITION_CODES.ARRIVE.text,
         };
 
+        // metadata: the actually-requested starting latlng and target latlng
+        route.wanted_start = gfactory.createPoint(new jsts.geom.Coordinate(route.start_segment.wanted_lng, route.start_segment.wanted_lat));
+        route.wanted_end = gfactory.createPoint(new jsts.geom.Coordinate(route.target_segment.wanted_lng, route.target_segment.wanted_lat));
+
+        // metadata: the closest point latlng and the closest distance, to our starting and ending segment
+        // they already have these from findNearestSegmentToLatLng() but let's formalize them into the output
+        route.closest_point_start = gfactory.createPoint(new jsts.geom.Coordinate(route.start_segment.closest_lng, route.start_segment.closest_lat));
+        route.closest_point_end   = gfactory.createPoint(new jsts.geom.Coordinate(route.target_segment.closest_lng, route.target_segment.closest_lat));
+        route.closest_distance_start = route.start_segment.closest_distance;
+        route.closest_distance_end   = route.target_segment.closest_distance;
+
+        // metadata: the sum distance from all the segments, e.g. total trip length
+        route.total_meters = route.reduce(function (sum, segment) { return sum + segment.meters; }, 0);
+
         // and Bob's your uncle
         return route;
     },
@@ -416,7 +454,16 @@ var ROUTER = {
 
         var structure = {
             type: "FeatureCollection",
-            features: route.map(function (routestep) {    
+            properties: {
+                total_meters: route.total_meters,
+                startpoint_wanted: wktwriter.write(route.wanted_start),
+                endpoint_wanted: wktwriter.write(route.wanted_end),
+                startpoint_trail: wktwriter.write(route.closest_point_start),
+                endpoint_trail: wktwriter.write(route.closest_point_end),
+                startpoint_meters: route.closest_distance_start,
+                endpoint_meters: route.closest_distance_end,
+            },
+            features: route.map(function (routestep) {
                 var feature = wktwriter.write(routestep.geom);
 
                 feature.properties = {
