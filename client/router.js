@@ -106,6 +106,8 @@ var ROUTER = {
                     try {
                         var route = self.assemblePath(start_segment, target_segment, data.rows, northbound);
 
+                        if (! route) { failure_callback("No route could be found between those locations."); return; }
+
                         route.start_lat      = start_lat;
                         route.start_lng      = start_lng;
                         route.target_lat     = target_lat;
@@ -251,20 +253,24 @@ var ROUTER = {
                 // then let nextsegment remain null, so our next pass will be on that fork node with one less option
                 console.log([ 'dead end at:', here.debug ]);
 
-                if (route.length < 2) {
-                    console.log([ 'dead end at our start; there is no route', route ]);
-                    throw "No route could be found between these locations.";
-                    break;
-                }
-
                 for (var i=route.length-1 ; i >= 0; i--) {
+                    // if we are all the way back at the start and are seeing 0 candidates, it's not gonna happen
+                    if (i == 0) {
+                        console.log([ "zero candidates at starting node. there is no path" ]);
+                        route = null;
+                        break;
+                    }
+
                     if (! route[i].fork) continue;
                     console.log([ "last fork was at step:", i, route[i].debug ]);
                     route.splice(i+1);
-                    console.log([ 'stripped back to', route[route.length-1].debug ]);
+                    console.log([ 'stripped back to last fork:', route[route.length-1].debug ]);
                     break;
                 }
             }
+
+            // the only way that route can become null is by giving up entirely (it's an array with at least the 1 starting segment)
+            if (route === null) break;
 
             // add this segment to our route
             // then poison this segment so we won't try it again (backward is never a way forward)
@@ -274,7 +280,8 @@ var ROUTER = {
             }
         } // end of potentially infinite loop
 
-        // done assembling the path; hand back to caller, probably for postprocessing
+        // done assembling the path; or else a null because there is no path
+        // hand back to caller, probably for postprocessing
         return route;
     },
 

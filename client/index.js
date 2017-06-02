@@ -32,6 +32,24 @@ $(document).ready(function () {
     MAP.pois = L.featureGroup([]).addTo(MAP);
 });
 
+function reset() {
+    // empty the directions readout
+    $('#directions').empty();
+
+    // clear the transition-point markers
+    MAP.transitions.clearLayers();
+
+    // clear the point-of-interest markers
+    MAP.pois.clearLayers();
+
+    // clear the drawn line
+    MAP.removeLayer(MAP.route);
+}
+
+function error(errormessage) {
+    alert(errormessage);
+}
+
 function success(routejsondocument) {
     // metadata in the readout/listing
     var $readout = $('#directions');
@@ -141,23 +159,9 @@ function success(routejsondocument) {
     MAP.fitBounds(MAP.route.getBounds());
 }
 
-function error(errormessage) {
-    alert(errormessage);
-}
-
-function reset() {
-    // empty the directions readout
-    $('#directions').empty();
-
-    // clear the transition-point markers
-    MAP.transitions.clearLayers();
-
-    // clear the point-of-interest markers
-    MAP.pois.clearLayers();
-
-    // clear the drawn line
-    MAP.removeLayer(MAP.route);
-}
+//
+// and now some specific demo routes
+//
 
 function routeA() {
     // 7th and Townsend St -> 2nd St in Darien, GA
