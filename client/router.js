@@ -95,10 +95,6 @@ var ROUTER = {
                         segment.firstpoint = gfactory.createPoint(mypoints[0]);
                         segment.lastpoint  = gfactory.createPoint(mypoints[ mypoints.length-1 ]);
 
-                        var snaptolerance = 0.002; // about 50 ft; the topology is very broken
-                        segment.firstpointsnap = segment.firstpoint.buffer(snaptolerance, 10);
-                        segment.lastpointsnap  = segment.lastpoint.buffer(snaptolerance, 10);
-
                         // done
                         return segment;
                     });
@@ -148,7 +144,6 @@ var ROUTER = {
     findNearestSegmentToLatLng: function (lat, lng, direction, success_callback, failure_callback) {
         var closest_segment;
 
-console.log('gda ' + direction );
         var directionclause = "TRUE";
         switch (direction) {
             case 'N': // N trails only
@@ -200,7 +195,6 @@ console.log('gda ' + direction );
         var route = universe_segments.filter(function (segment) {
             return segment.id == start_segment.id;
         });
-//gda TODO if no route, basically true forever...
         poisoned[ start_segment.id ] = true;
 
         // the big loop
@@ -213,8 +207,20 @@ console.log('gda ' + direction );
 
             console.log([ "current location:", here.debug ]);
             var candidates = universe_segments.filter(function (candidate) {
+                // use this to debug if two segments aren't connecting but you think they should
+                // compare their endpoint-to-endpoint distance to the tolerance below
+                // tip: if the end-to-end distance is greater than the minimum distance, maybe the ends you see aren't really the ends, e.g. the line bends back over itself
+                /*
+                if (here.id == 661596 && candidate.id == 661598) {
+                    console.log([ 'minimum distance between segments', here.geom.distance(candidate.geom) ]);
+                    console.log([ 'distance to next segment first endpoint', here.geom.distance(candidate.firstpoint), here.geom.distance(candidate.firstpoint) <= 0.002 ]);
+                    console.log([ 'distance to next segment last endpoint', here.geom.distance(candidate.lastpoint), here.geom.distance(candidate.lastpoint) <= 0.002 ]);
+                }
+                */
+
+                var tolerance = 0.002; // about 50ft; the topology is bad but we should tolerate it
                 if (poisoned[candidate.id]) return false;
-                return candidate.firstpointsnap.contains(here.firstpoint) || candidate.firstpointsnap.contains(here.lastpoint) || candidate.lastpointsnap.contains(here.firstpoint)  || candidate.lastpointsnap.contains(here.lastpoint);
+                return here.geom.distance(candidate.firstpoint) <= tolerance || here.geom.distance(candidate.lastpoint) <= tolerance;
             });
 
             var nextsegment = null;
