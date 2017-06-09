@@ -6,6 +6,7 @@ import { setStorageItem, getStorageItem } from '../utils/localStorage';
 class ModalContent extends Component {
   static propTypes = {
     handleCloseModal: PropTypes.func.isRequired,
+    handleFormSubmit: PropTypes.func.isRequired,
   }
 
   constructor(props) {
@@ -35,7 +36,7 @@ class ModalContent extends Component {
     }
   }
 
-  handleTextChange() {
+  handleTextChange(event) {
     event.preventDefault();
     const value = event.target.value;
 
@@ -59,8 +60,11 @@ class ModalContent extends Component {
     });
   }
 
-  handleSubmit() {
+  handleSubmit(e) {
+    const { email } = this.state;
+    e.preventDefault();
     this.setState({ submitted: true });
+    this.props.handleFormSubmit(email);
     this.props.handleCloseModal();
   }
 
@@ -87,11 +91,7 @@ class ModalContent extends Component {
           <form
             className="modal-content__signup-form"
             onSubmit={this.handleSubmit}
-            action="https://greenway.us11.list-manage.com/subscribe/post"
-            method="POST"
           >
-            <input type="hidden" name="u" value="1912b94880f9bb2c2834cbcf6" />
-            <input type="hidden" name="id" value="962cce34d4" />
             <fieldset className="email-signup-group">
               <label
                 htmlFor="MERGE0"
@@ -112,15 +112,15 @@ class ModalContent extends Component {
                   value={email}
                   onChange={this.handleTextChange}
                 />
-                <button
+                <input
                   className="signup-submit"
+                  type="submit"
                   tabIndex={0}
                   onClick={() => {}}
                   disabled={!valid}
                   style={buttonStyle}
-                >
-                  { 'sign up' }
-                </button>
+                  value="Sign Up"
+                />
               </div>
             </fieldset>
             <fieldset className="hide-modal-group">

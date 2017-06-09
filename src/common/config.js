@@ -7,6 +7,11 @@ export const baseURL = process.env.NODE_ENV === 'production' ? `/${packageJSON.n
 
 export const googleAPIKey = 'AIzaSyAFBQ5xLgNikyYrlnfvbfODyO35g3k-IkU';
 
+// Mailchimp tokens
+export const mailchimpAPIKey = '6b8b1d41b3a079e4950fb015a11d4d6d-us8';
+export const mailchimpServerInstance = mailchimpAPIKey.split('-')[1];
+export const mailchimpListID = '76888a861e';
+
 // CARTO account name (temporarily set to "greeninfo" until data is in order)
 export const cartoUser = 'greeninfo';
 

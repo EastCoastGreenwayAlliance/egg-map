@@ -16,6 +16,7 @@ class App extends Component {
     match: PropTypes.object, // via react-router
     staticContext: PropTypes.object, // via react-router
     isMobile: PropTypes.bool,
+    postMailchimpAPI: PropTypes.func.isRequired,
   }
 
   constructor() {
@@ -40,7 +41,7 @@ class App extends Component {
 
   render() {
     const { showModal } = this.state;
-    const { isMobile } = this.props;
+    const { isMobile, postMailchimpAPI } = this.props;
 
     return (
       <div className="App">
@@ -59,7 +60,10 @@ class App extends Component {
           className="Modal"
           overlayClassName="ModalOverlay"
         >
-          <ModalContent handleCloseModal={this.handleCloseModal} />
+          <ModalContent
+            handleCloseModal={this.handleCloseModal}
+            handleFormSubmit={postMailchimpAPI}
+          />
         </ReactModal>
       </div>
     );
