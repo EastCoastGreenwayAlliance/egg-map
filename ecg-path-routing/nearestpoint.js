@@ -2,7 +2,7 @@ const DBTABLE_EDGES = require('./sqlfactory').DBTABLE_EDGES;
 const sqlQueryFactory = require('./sqlfactory').sqlQueryFactory;
 
 
-function findNearest (lat, lng, success_callback, failure_callback, options) {
+function findNearest (lat, lng, options, callback) {
   var closest_segment;
 
   var directionclause = "TRUE";
@@ -31,11 +31,16 @@ function findNearest (lat, lng, success_callback, failure_callback, options) {
     closest_segment.wanted_lat = lat; // decorate with the actually-requested lat+lng
     closest_segment.wanted_lng = lng; // decorate with the actually-requested lat+lng
 
-    success_callback(closest_segment);
+    if (callback && typeof callback === 'function') {
+      callback(null, closest_segment);
+    }
   })
   .error(function(errors) {
     var errmsg = "findNearest failed: " + errors[0];
-    failure_callback(errmsg);
+
+    if (callback && typeof callback === 'function') {
+      callback(errmsg);
+    }
   });
 };
 
