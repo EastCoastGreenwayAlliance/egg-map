@@ -12,8 +12,7 @@ var request = require('superagent');
 var morgan = require('morgan');
 var path = require('path');
 var enforce = require('express-sslify');
-
-var ecgrouting = require('./ecg-path-routing');
+var workerFarm = require('worker-farm');
 
 // mailchimp API settings are stored in the .env file
 var mailchimpAPIKey = process.env.MAILCHIMP_API_KEY;
@@ -23,6 +22,9 @@ var mailchimpListID = process.env.MAILCHIMP_LIST_ID;
 var url = `https://${mailchimpServerInstance}.api.mailchimp.com/3.0/lists/${mailchimpListID}/members/`;
 
 var app = express();
+
+// load ecg-path-routing module as a worker, exposing its two methods
+var workers = workerFarm(require.resolve('./ecg-path-routing'), ['findNearest', 'findRoute']);
 
 // enforces HTTPS connections on any incoming GET and HEAD requests
 if (process.env.NODE_ENV === 'production') {
@@ -84,19 +86,24 @@ app.get('/route/nearestpoint/', (req, res) => {
     trailonly: true
   };
 
-  const success = function (segment) {
+  function success (segment) {
     res
     .set('Content-Type', 'application/json')
     .json(segment);
-  };
+  }
 
-  const failure = function (errmsg) {
+  function failure (errmsg) {
     res
     .set('Content-Type', 'text/plain')
     .send(errmsg);
-  };
+  }
 
-  ecgrouting.findNearest(lat, lng, success, failure, options);
+  function callback (error, data) {
+    if (error) return failure(error);
+    return success(data);
+  }
+
+  workers.findNearest(lat, lng, options, callback);
 });
 
 // routing: given 2 latlngs, find the nearest point-on-route same as nearestpoint, then find a route between them
@@ -124,19 +131,24 @@ app.get('/route/directions/', (req, res) => {
     // debug: true
   };
 
-  const success = function (route) {
+  function success (route) {
     res
     .set('Content-Type', 'application/json')
     .json(route);
-  };
+  }
 
-  const failure = function (errmsg) {
+  function failure (errmsg) {
     res
     .set('Content-Type', 'text/plain')
     .send(errmsg);
-  };
+  }
 
-  ecgrouting.findRoute(start_lat, start_lng, target_lat, target_lng, options, success, failure);
+  function callback (error, data) {
+    if (error) return failure(error);
+    return success(data);
+  }
+
+  workers.findRoute(start_lat, start_lng, target_lat, target_lng, options, callback);
 });
 
 // Handle Mailchimp API calls from the client
