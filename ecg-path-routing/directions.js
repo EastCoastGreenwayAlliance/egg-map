@@ -18,8 +18,15 @@ const TRANSITION_CODES = {
   OTHER:    { code: 'XX', text: "" },
 };
 
+// generic error handling function
+function handleError(callback, error, msg) {
+  if (callback && typeof callback === 'function') {
+    return callback(error);
+  }
+}
 
-function findRoute (start_lat, start_lng, target_lat, target_lng, options, success_callback, failure_callback) {
+
+function findRoute (start_lat, start_lng, target_lat, target_lng, options, callback) {
   // is this northbound or southbound? the edges and cues are tagged with N/S/B as a proxy for one-way behavior
   var northbound = start_lat <= target_lat;
 
@@ -28,8 +35,12 @@ function findRoute (start_lat, start_lng, target_lat, target_lng, options, succe
     direction: northbound ? 'N' : 'S'
   };
 
-  findNearest(start_lat, start_lng, function (start_segment) {
-    findNearest(target_lat, target_lng, function (target_segment) {
+  findNearest(start_lat, start_lng, {}, function (error, start_segment) {
+
+    if (error) handleError(callback, error);
+
+    findNearest(target_lat, target_lng, {}, function (error, target_segment) {
+      if (error) handleError(callback, error);
       if (DEBUG) console.log([ 'start segment', start_lat, start_lng, start_segment ]);
       if (DEBUG) console.log([ 'target segment', target_lat, target_lng, target_segment ]);
 
@@ -84,7 +95,7 @@ function findRoute (start_lat, start_lng, target_lat, target_lng, options, succe
         try {
           var route = assemblePath(start_segment, target_segment, data.rows, northbound);
 
-          if (! route) { failure_callback("Please try a shorter route."); return; }
+          if (!route && callback && typeof callback === 'function') { callback("Please try a shorter route."); return; }
 
           route.start_lat    = start_lat;
           route.start_lng    = start_lng;
@@ -103,25 +114,29 @@ function findRoute (start_lat, start_lng, target_lat, target_lng, options, succe
           route = routeDownsample(route);
           route = routeSerialize(route);
 
-          success_callback(route);
+          if (callback && typeof callback === 'function') {
+              callback(null, route);
+          }
         }
         catch (errmsg) {
-          failure_callback(errmsg);
+          handleError(error, callback);
         }
       })
       .error(function (errors) {
         var errmsg = "error fetching lines universe: " + errors[0];
-        failure_callback(errmsg);
+        handleError(errmsg, callback);
       });
     },
     function (errmsg) {
-      failure_callback("error finding target segment: " + errmsg);
+      errmsg = "error finding target segment: " + errmsg;
+      handleError(errmsg, callback);
     },
     pointfinderoptions
     )
   },
   function (errmsg) {
-    failure_callback("error finding start segment: " + errmsg);
+    errmsg = "error finding start segment: " + errmsg;
+    handleError(errmsg, callback);
   },
   pointfinderoptions
   );
