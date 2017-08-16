@@ -27,6 +27,7 @@ class SearchResults extends Component {
     routeSearchRequest: PropTypes.func.isRequired,
     routeSearchSuccess: PropTypes.func.isRequired,
     routeSearchError: PropTypes.func.isRequired,
+    fetchRoutingLocation: PropTypes.func.isRequired,
     geocodeIsFetching: PropTypes.bool,
     geocodeError: PropTypes.oneOfType([
       PropTypes.string,
@@ -138,8 +139,7 @@ class SearchResults extends Component {
 
   handleGeocodeResult(result) {
     const { coordinates } = result;
-    const { startLocation, endLocation, nearestSegmentRequest } = this.props;
-    const self = this;
+    const { startLocation, endLocation, fetchRoutingLocation } = this.props;
 
     if (!coordinates || !coordinates.length) return;
 
@@ -148,18 +148,8 @@ class SearchResults extends Component {
     if (!startLocation.accepted && !endLocation.accepted) {
       const lat = coordinates[0];
       const lng = coordinates[1];
-
-      // tell our app we are "fetching" the nearest ECG segment node, as its
-      // an async request & sometimes the routing calc takes a while
-      nearestSegmentRequest('START');
-
-      this.geoRouter.findNearestSegmentToLatLng(lat, lng,
-        closestSegment => self.handleGeoRoutingSuccess(closestSegment, 'START'),
-        error => self.handleGeoRoutingError(error),
-        {
-          trailonly: true
-        }
-      );
+      // get the nearest ecg segment location to the geocode result
+      fetchRoutingLocation('START', lat, lng);
     }
 
     // if we have a start location and not an end location, get the nearest ECG segment
@@ -167,28 +157,9 @@ class SearchResults extends Component {
     if (startLocation.accepted && !endLocation.accepted) {
       const lat = coordinates[0];
       const lng = coordinates[1];
-
-      // tell our app we are "fetching" the nearest ECG segment node, as its
-      // an async request & sometimes the routing calc takes a while
-      nearestSegmentRequest('END');
-
-      this.geoRouter.findNearestSegmentToLatLng(lat, lng,
-        closestSegment => self.handleGeoRoutingSuccess(closestSegment, 'END'),
-        error => self.handleGeoRoutingError(error),
-        {
-          trailonly: true
-        }
-      );
+      // get the nearest ecg segment location to the geocode result
+      fetchRoutingLocation('END', lat, lng);
     }
-  }
-
-  handleGeoRoutingSuccess(closestSegment, step) {
-    const { closest_lat, closest_lng, closest_distance } = closestSegment;
-    this.props.setRoutingLocation([closest_lat, closest_lng], closest_distance, step);
-  }
-
-  handleGeoRoutingError(error) {
-    this.props.nearestSegmentError(error);
   }
 
   renderSearchResultsStep() {
