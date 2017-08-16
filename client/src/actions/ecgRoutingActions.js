@@ -1,4 +1,6 @@
 // Redux Action Creators for ECG Routing / Directions
+import fetch from 'isomorphic-fetch';
+
 import {
   REQUEST_ROUTING_LOCATION,
   ACCEPT_ROUTING_LOCATION,
@@ -33,6 +35,29 @@ export const setRoutingLocation = (coords, distance, step) => ({
   distance,
   step,
 });
+
+export const fetchRoutingLocation = (step, lat, lng) => {
+  const url = `/route/nearestpoint/?lat=${lat}&lng=${lng}`;
+
+  return (dispatch) => {
+    dispatch(nearestSegmentRequest(step));
+
+    return fetch(url)
+      .then((res) => {
+        if (!res.ok) {
+          dispatch(nearestSegmentError(res.statusText));
+          throw Error(res.statusText);
+        } else {
+          return res.json();
+        }
+      })
+      .then((json) => {
+        const { closest_lat, closest_lng, closest_distance } = json;
+        dispatch(setRoutingLocation([closest_lat, closest_lng], closest_distance, step));
+      })
+      .catch(error => dispatch(nearestSegmentError(error)));
+  };
+};
 
 // user accepts / confirms the current routing location
 // @param { string } step: either START or END
