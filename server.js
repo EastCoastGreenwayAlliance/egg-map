@@ -126,27 +126,38 @@ app.get('/route/directions/', (req, res) => {
   const start_lng = parseFloat(req.query.slng);
   const target_lat = parseFloat(req.query.tlat);
   const target_lng = parseFloat(req.query.tlng);
+  let interval = 2000;
+  let intervalId;
 
   const options = {
-    // debug: true
+    debug: process.env.NODE_ENV === 'development'
   };
 
   function success (route) {
-    res
-    .set('Content-Type', 'application/json')
-    .json(route);
+    clearInterval(intervalId);
+    res.write(JSON.stringify(route));
+    res.end();
   }
 
   function failure (errmsg) {
-    res
-    .set('Content-Type', 'text/plain')
-    .send(errmsg);
+    clearInterval(intervalId);
+    res.write('{ message: ' + errmsg + '}');
+    res.end();
   }
 
   function callback (error, data) {
     if (error) return failure(error);
     return success(data);
   }
+
+  function keepAlive () {
+    res.write(' ');
+  }
+
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+
+  // send a single byte to keep the request open to prevent Heroku from shutting it down if it takes longer than 30s
+  intervalId = setInterval(keepAlive, interval);
 
   workers.findRoute(start_lat, start_lng, target_lat, target_lng, options, callback);
 });
