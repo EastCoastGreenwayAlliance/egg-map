@@ -74,9 +74,10 @@ module.exports = {
     hotOnly: true, // tell dev-server we're using HMR, don't refresh page on failures
     port: 8888,
     // proxy requests to the backend server on port 5001
-    proxy: {
-      '/signup*': 'http://127.0.0.1:5001'
-    }
+    proxy: [{
+      context: ['/signup', '/route'],
+      target: 'http://127.0.0.1:5001'
+    }]
   },
 
   externals: {
