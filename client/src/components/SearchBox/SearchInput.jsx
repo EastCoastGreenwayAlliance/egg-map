@@ -11,6 +11,7 @@ class SearchInput extends Component {
     cancelRoutingLocation: PropTypes.func.isRequired,
     startLocation: PropTypes.object,
     endLocation: PropTypes.object,
+    isLoadingRoute: PropTypes.bool.isRequired,
   }
 
   constructor() {
@@ -45,12 +46,15 @@ class SearchInput extends Component {
   handleSubmit(e) {
     const { searchAddress } = this.state;
     const { startLocation, endLocation, fetchLocationGeocode,
-      cancelRoutingLocation } = this.props;
+      cancelRoutingLocation, isLoadingRoute } = this.props;
 
     e.preventDefault();
 
     // unfocus the text input, closes keyboard on iOS devices
     this.textInput.blur();
+
+    // if we're loading route directions, don't allow the form to resubmit
+    if (isLoadingRoute) return;
 
     // user has already confirmed a start and end location before this search, start over
     if (startLocation.accepted && endLocation.accepted) {
@@ -67,7 +71,7 @@ class SearchInput extends Component {
   }
 
   handleSearchCancel() {
-    const { startLocation, endLocation, cancelRoutingLocation } = this.props;
+    const { startLocation, endLocation, cancelRoutingLocation, isLoadingRoute } = this.props;
     // handles how the search is canceled based on the current app state
     if (startLocation.coordinates.length && !endLocation.coordinates.length) {
       // clear the starting point data
@@ -79,7 +83,7 @@ class SearchInput extends Component {
       cancelRoutingLocation('END');
     }
 
-    if (startLocation.accepted && endLocation.accepted) {
+    if (startLocation.accepted && endLocation.accepted && !isLoadingRoute) {
       // start over
       cancelRoutingLocation('DONE');
     }

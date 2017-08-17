@@ -11,10 +11,12 @@ import {
 } from '../actions/';
 
 const mapStateToProps = ({ routing }) => {
-  const { startLocation, endLocation } = routing;
+  const { startLocation, endLocation, route } = routing;
+  const { isLoadingRoute } = route;
   return {
     startLocation,
     endLocation,
+    isLoadingRoute,
   };
 };
 
