@@ -86,6 +86,11 @@ app.get('/route/nearestpoint/', (req, res) => {
     trailonly: true
   };
 
+  if ( isNaN(lat) || isNaN(lng) ) {
+    res.json({ message: "Missing required params" });
+    return;
+  }
+
   function success (segment) {
     res
     .set('Content-Type', 'application/json')
@@ -130,9 +135,8 @@ app.get('/route/directions/', (req, res) => {
   let intervalId;
 
   if ( isNaN(start_lat) || isNaN(start_lng) || isNaN(target_lat) || isNaN(target_lng) ) {
-    let errmsg = "Missing required params";
-    res.write('{ message: ' + errmsg + ' }');
-    res.end();
+    res.json({ message: "Missing required params" });
+    return;
   }
 
   const options = {
