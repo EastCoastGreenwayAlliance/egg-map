@@ -129,6 +129,12 @@ app.get('/route/directions/', (req, res) => {
   let interval = 2000;
   let intervalId;
 
+  if ( isNaN(start_lat) || isNaN(start_lng) || isNaN(target_lat) || isNaN(target_lng) ) {
+    let errmsg = "Missing required params";
+    res.write('{ message: ' + errmsg + ' }');
+    res.end();
+  }
+
   const options = {
     debug: process.env.NODE_ENV === 'development'
   };
