@@ -36,6 +36,8 @@ export const setRoutingLocation = (coords, distance, step) => ({
   step,
 });
 
+// fetch action that makes a GET request to route/nearestpoint API endpoint
+// see server.js for more info
 export const fetchRoutingLocation = (step, lat, lng) => {
   const url = `/route/nearestpoint/?lat=${lat}&lng=${lng}`;
 
@@ -89,8 +91,6 @@ export const cancelRoutingLocation = step => (dispatch, getState) => {
 
 // actions for describing the route search
 // happens after a user confirms their start and end locations
-// note these are async actions not handled directly by the app / redux thunk,
-// but are handled by the ecgClientRouter module instead
 // 1. route search was requested, let our app know so we can show a loading GIF
 export const routeSearchRequest = () => ({
   type: ROUTE_SEARCH_REQUEST,
@@ -109,3 +109,24 @@ export const routeSearchError = error => ({
   type: ROUTE_SEARCH_ERROR,
   error,
 });
+
+// fetch action that makes a GET request to the route/directions API endpoint
+// see server.js for more info
+export const fetchRouteDirections = (startLat, startLng, endLat, endLng) => {
+  const url = `/route/directions/?slat=${startLat}&slng=${startLng}&tlat=${endLat}&tlng=${endLng}`;
+
+  return (dispatch) => {
+    dispatch(routeSearchRequest());
+    fetch(url)
+      .then((res) => {
+        if (!res.ok) {
+          dispatch(routeSearchError(res.statusText));
+          throw Error(res.statusText);
+        } else {
+          return res.json();
+        }
+      })
+      .then(json => dispatch(routeSearchSuccess(json)))
+      .catch(error => dispatch(routeSearchError(error)));
+  };
+};

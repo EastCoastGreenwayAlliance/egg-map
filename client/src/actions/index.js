@@ -10,6 +10,7 @@ export {
   routeSearchSuccess,
   routeSearchError,
   fetchRoutingLocation,
+  fetchRouteDirections,
 } from './ecgRoutingActions';
 export postMailchimpAPI from './mailchimpActions';
 export fetchElevationData, { elevationDataClear } from './elevationDataActions';
