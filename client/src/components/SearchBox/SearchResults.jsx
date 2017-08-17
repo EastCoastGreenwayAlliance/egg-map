@@ -2,8 +2,6 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import isEqual from 'lodash/isEqual';
 
-import { cartoUser, cartoTables } from '../../common/config';
-import { loadGeoRouter } from '../../common/api';
 import { logRouteSearchTime } from '../../common/googleAnalytics';
 
 // helper components
@@ -71,19 +69,7 @@ class SearchResults extends Component {
     if (geocodeResult && !isEqual(geocodeResult, this.props.geocodeResult)) {
       // We received a geocode result from the user, so show the geocode result
       // and nearest ECG route segment node
-      // CODE SPLITTING NOTE: if our geoRouter object hasn't been loaded yet,
-      // then load it async then handle the geocode result
-      // otherwise just handle the geocode result
-      if (this.geoRouter === undefined) {
-        loadGeoRouter((error, response) => {
-          if (error) throw error;
-          this.geoRouter = response.default;
-          this.geoRouter.init(cartoUser, cartoTables.route_segments);
-          this.handleGeocodeResult(geocodeResult);
-        });
-      } else {
-        this.handleGeocodeResult(geocodeResult);
-      }
+      this.handleGeocodeResult(geocodeResult);
     }
 
     // user has okay'd start and end locations, now get the actual route

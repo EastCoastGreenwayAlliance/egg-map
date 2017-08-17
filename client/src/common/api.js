@@ -126,12 +126,6 @@ export const configureLayerSource = (sql) => {
 export const cartoSQLQuery = query =>
   `https://${cartoUser}.carto.com/api/v2/sql?q=${query}`;
 
-// Asyncronously loads the code for geo routing
-export const loadGeoRouter = callback =>
-  import('../../lib/ecgClientRouter')
-    .then(response => callback(null, response))
-    .catch(error => callback(error));
-
 // async loads togpx.js
 export const loadToGPX = callback =>
   import('togpx')
