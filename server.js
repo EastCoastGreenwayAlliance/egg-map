@@ -134,6 +134,7 @@ app.get('/route/directions/', (req, res) => {
   };
 
   function success (route) {
+    console.log('found route');
     clearInterval(intervalId);
     res.write(JSON.stringify(route));
     res.end();

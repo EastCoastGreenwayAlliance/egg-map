@@ -118,6 +118,8 @@ heroku config:set NODE_ENV=production
 heroku config:set NPM_CONFIG_PRODUCTION=false
 heroku config:set MAILCHIMP_API_KEY="<your mailchimp api key>"
 heroku config:set MAILCHIMP_LIST_ID="<your mailchimp list id>"
+heroku config:set CARTODB_USER="<your carto account name>"
+heroku config:set DBTABLE_EDGES="<carto table containing route line data>"
 ```
 
 To deploy the app:
