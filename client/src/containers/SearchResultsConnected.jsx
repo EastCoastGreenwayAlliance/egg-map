@@ -13,6 +13,7 @@ import {
   routeSearchSuccess,
   routeSearchError,
   fetchRoutingLocation,
+  fetchRouteDirections,
 } from '../actions';
 
 const mapStateToProps = ({ browser, geocoding, routing }) => {
@@ -41,4 +42,5 @@ export default connect(mapStateToProps, {
   routeSearchSuccess,
   routeSearchError,
   fetchRoutingLocation,
+  fetchRouteDirections,
 })(SearchResults);

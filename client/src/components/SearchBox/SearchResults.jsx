@@ -28,6 +28,7 @@ class SearchResults extends Component {
     routeSearchSuccess: PropTypes.func.isRequired,
     routeSearchError: PropTypes.func.isRequired,
     fetchRoutingLocation: PropTypes.func.isRequired,
+    fetchRouteDirections: PropTypes.func.isRequired,
     geocodeIsFetching: PropTypes.bool,
     geocodeError: PropTypes.oneOfType([
       PropTypes.string,
@@ -105,36 +106,13 @@ class SearchResults extends Component {
 
   getRoute(startLocation, endLocation) {
     // handles making the geo routing search request given start and end locations
-    const self = this;
-
-    function findEcgRoute() {
-      // make the findRoute call from our geoRouter, passing coordinates for
-      // start and end locations, and callbacks for success and error
-      self.geoRouter.findRoute(
-        startLocation.coordinates[0],
-        startLocation.coordinates[1],
-        endLocation.coordinates[0],
-        endLocation.coordinates[1],
-        route => self.props.routeSearchSuccess(route),
-        error => self.props.routeSearchError(error)
-      );
-    }
-
-    // tell our app we are starting the search for a geo route
-    this.props.routeSearchRequest();
-
-    if (!this.geoRouter) {
-      // import geoRouter codebase async
-      loadGeoRouter((error, response) => {
-        if (error) throw error;
-        self.geoRouter = response.default;
-        self.geoRouter.init(cartoUser, cartoTables.route_segments);
-        findEcgRoute();
-      });
-    } else {
-      // geo-router is already loaded
-      findEcgRoute();
-    }
+    const { fetchRouteDirections } = this.props;
+    fetchRouteDirections(
+      startLocation.coordinates[0],
+      startLocation.coordinates[1],
+      endLocation.coordinates[0],
+      endLocation.coordinates[1],
+    );
   }
 
   handleGeocodeResult(result) {
