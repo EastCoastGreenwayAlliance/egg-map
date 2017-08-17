@@ -4,8 +4,8 @@
 
 var cartodb = require('cartodb');
 
-const CARTODB_USER = 'niles';
-const DBTABLE_EDGES = "ecg_route_lines_prod";
+const CARTODB_USER = process.env.CARTODB_USER;
+const DBTABLE_EDGES = process.env.DBTABLE_EDGES;
 
 function sqlQueryFactory () {
   return new cartodb.SQL({
