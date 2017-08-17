@@ -27,7 +27,6 @@ function findNearest (lat, lng, options, callback) {
 
   sqlQueryFactory().execute(sql, params).done(function(data) {
     closest_segment = data.rows[0];
-
     closest_segment.wanted_lat = lat; // decorate with the actually-requested lat+lng
     closest_segment.wanted_lng = lng; // decorate with the actually-requested lat+lng
 
@@ -37,7 +36,6 @@ function findNearest (lat, lng, options, callback) {
   })
   .error(function(errors) {
     var errmsg = "findNearest failed: " + errors[0];
-
     if (callback && typeof callback === 'function') {
       callback(errmsg);
     }

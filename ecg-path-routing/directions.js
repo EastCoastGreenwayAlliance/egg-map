@@ -4,7 +4,7 @@ const DBTABLE_EDGES = require('./sqlfactory').DBTABLE_EDGES;
 const sqlQueryFactory = require('./sqlfactory').sqlQueryFactory;
 const findNearest = require('./nearestpoint').findNearest;
 
-const DEBUG = false;
+const DEBUG = true;
 
 const TRANSITION_CODES = {
   RIGHT_TURN: { code: 'RT', text: "Turn right onto " },
@@ -19,9 +19,10 @@ const TRANSITION_CODES = {
 };
 
 // generic error handling function
-function handleError(callback, error, msg) {
+function handleError(message, callback) {
+  console.error(message);
   if (callback && typeof callback === 'function') {
-    return callback(error);
+    return callback(message);
   }
 }
 
@@ -36,7 +37,6 @@ function findRoute (start_lat, start_lng, target_lat, target_lng, options, callb
   };
 
   findNearest(start_lat, start_lng, {}, function (error, start_segment) {
-
     if (error) handleError(callback, error);
 
     findNearest(target_lat, target_lng, {}, function (error, target_segment) {
@@ -45,21 +45,25 @@ function findRoute (start_lat, start_lng, target_lat, target_lng, options, callb
       if (DEBUG) console.log([ 'target segment', target_lat, target_lng, target_segment ]);
 
       // fetch relevant route segments
-      // loading the whole dataset can be workable over a fast connection, but we'd rather not
-      // and a bounding box filter to fetch only the relevant area; no path near Boston can be relevant to a route within Florida
+      // optimization: a bounding box filter to fetch only the relevant area; no path near Boston can be relevant to a route within Florida
       // BUT don't be too draconian, as a 50-mile loop may indeed head well outside the box the the two endpoints (imagine the letter theta)
+      // start/end: the start_segment and target_segment IDs are included as a second clause, to ensure that they are always included
+      // there are situations where we're northbound but our target segment is tagged S!
       var params = {
         n: Math.max(target_segment.n, start_segment.n) + 2.0,
         s: Math.min(target_segment.s, start_segment.s) - 2.0,
         e: Math.max(target_segment.e, start_segment.e) + 2.0,
         w: Math.min(target_segment.w, start_segment.w) - 2.0,
-        dir: northbound ? 'N' : 'S'
+        dir: northbound ? 'N' : 'S',
+        start_segment_id: start_segment.id,
+        target_segment_id: target_segment.id,
       };
 
       // var geomtext = "ST_SIMPLIFY(the_geom,0.0001)"; // a teeny-tiny simplification to clean some of their flourishes that have wonky angles at starts and ends
       var geomtext = "the_geom"; // the geometry is clean enough we can just use it as-is
 
-      var sql = "SELECT pline_id AS id, title, meters, ST_ASTEXT(ST_MULTI(" + geomtext + ")) AS geom FROM " + DBTABLE_EDGES + " WHERE DIRECTION IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)";
+      var sql = "SELECT pline_id AS id, title, meters, ST_ASTEXT(ST_MULTI(" + geomtext + ")) AS geom FROM " + DBTABLE_EDGES + " WHERE (direction IN ('B', '{{ dir }}') AND the_geom && ST_MAKEENVELOPE({{ w }}, {{ s }}, {{ e }}, {{ n }}, 4326)) OR pline_id IN ({{ start_segment_id }}, {{ target_segment_id }})";
+      if (DEBUG) console.log([ sql, params ]);
 
       sqlQueryFactory().execute(sql, params).done(function(data) {
         var wktreader = new jsts.io.WKTReader();
@@ -119,7 +123,7 @@ function findRoute (start_lat, start_lng, target_lat, target_lng, options, callb
           }
         }
         catch (errmsg) {
-          handleError(error, callback);
+          handleError(errmsg, callback);
         }
       })
       .error(function (errors) {
@@ -162,6 +166,9 @@ function assemblePath (start_segment, target_segment, universe_segments, northbo
   var target_geom = universe_segments.filter(function (segment) {
     return segment.id == target_segment.id;
   })[0];
+  if (! target_geom) {
+    throw "Target segment was not in the segment list from the database";
+  }
 
   // start by pulling from the universe, our first edge
   // then poison it so we don't try to re-cross our own starting point
